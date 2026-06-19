@@ -140,6 +140,35 @@
       <button class="ghost" id="shuffle" disabled>↻ Shuffle ticks</button>
     </div>
 
+    <div class="group">
+      <h3>Edge halftone<label class="toggle"><input type="checkbox" id="eOn"><span class="track"></span></label></h3>
+      <label class="row">
+        <span class="rowhead"><span>Depth (reach)</span><span class="val" id="eDepthVal">14%</span></span>
+        <input type="range" id="eDepth" min="2" max="45" value="14" disabled>
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Dot size</span><span class="val" id="eDotVal">7</span></span>
+        <input type="range" id="eDot" min="3" max="22" value="7" disabled>
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Softness</span><span class="val" id="eSoftVal">1.0</span></span>
+        <input type="range" id="eSoft" min="40" max="250" value="100" disabled>
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Irregularity</span><span class="val" id="eIrrVal">55%</span></span>
+        <input type="range" id="eIrr" min="0" max="100" value="55" disabled>
+      </label>
+      <label class="row" style="flex-direction:row;align-items:center;justify-content:space-between">
+        <span>Yellow dots</span>
+        <label class="toggle"><input type="checkbox" id="eYellow"><span class="track"></span></label>
+      </label>
+      <label class="row" style="flex-direction:row;align-items:center;justify-content:space-between">
+        <span>Follow image tone</span>
+        <label class="toggle"><input type="checkbox" id="eTone" checked><span class="track"></span></label>
+      </label>
+      <button class="ghost" id="eShuffle" disabled>↻ Shuffle edge</button>
+    </div>
+
     <div class="btnrow">
       <button id="download" disabled>Download PNG</button>
     </div>
@@ -158,6 +187,7 @@ const YELLOW = "#FFE000";
 let img = null;
 let srcName = "image";
 let tickSeed = Math.floor(Math.random()*1e9);
+let edgeSeed = Math.floor(Math.random()*1e9);
 
 const $ = id => document.getElementById(id);
 const els = {
@@ -166,10 +196,13 @@ const els = {
   contrast:$("contrast"), brightness:$("brightness"),
   htOn:$("htOn"), dot:$("dot"), angle:$("angle"),
   tkOn:$("tkOn"), tkCount:$("tkCount"), tkLen:$("tkLen"), tkThick:$("tkThick"), shuffle:$("shuffle"),
+  eOn:$("eOn"), eDepth:$("eDepth"), eDot:$("eDot"), eSoft:$("eSoft"),
+  eIrr:$("eIrr"), eYellow:$("eYellow"), eTone:$("eTone"), eShuffle:$("eShuffle"),
 };
 const valEls = {
   contrast:$("contrastVal"), brightness:$("brightVal"), dot:$("dotVal"), angle:$("angVal"),
   tkCount:$("tkCountVal"), tkLen:$("tkLenVal"), tkThick:$("tkThickVal"),
+  eDepth:$("eDepthVal"), eDot:$("eDotVal"), eSoft:$("eSoftVal"), eIrr:$("eIrrVal"),
 };
 
 // ---------- seeded RNG ----------
@@ -204,6 +237,10 @@ bind(els.angle,"angle","°");
 bind(els.tkCount,"tkCount");
 bind(els.tkLen,"tkLen");
 bind(els.tkThick,"tkThick");
+bind(els.eDepth,"eDepth","%");
+bind(els.eDot,"eDot");
+bind(els.eIrr,"eIrr","%");
+els.eSoft.addEventListener("input",()=>{ valEls.eSoft.textContent=(els.eSoft.value/100).toFixed(1); render(); });
 
 els.htOn.addEventListener("change",()=>{
   [els.dot,els.angle].forEach(e=>e.disabled=!els.htOn.checked); render();
@@ -211,6 +248,12 @@ els.htOn.addEventListener("change",()=>{
 els.tkOn.addEventListener("change",()=>{
   [els.tkCount,els.tkLen,els.tkThick,els.shuffle].forEach(e=>e.disabled=!els.tkOn.checked); render();
 });
+els.eOn.addEventListener("change",()=>{
+  [els.eDepth,els.eDot,els.eSoft,els.eIrr,els.eShuffle].forEach(e=>e.disabled=!els.eOn.checked); render();
+});
+els.eYellow.addEventListener("change",render);
+els.eTone.addEventListener("change",render);
+els.eShuffle.addEventListener("click",()=>{ edgeSeed=Math.floor(Math.random()*1e9); render(); });
 els.shuffle.addEventListener("click",()=>{ tickSeed=Math.floor(Math.random()*1e9); render(); });
 els.download.addEventListener("click",()=>{
   els.preview.toBlob(b=>{
@@ -264,7 +307,10 @@ function render(){
   ctx.fillRect(0,0,w,h);
   ctx.globalCompositeOperation = "source-over";
 
-  // 3. accent ticks on top
+  // 3. decorative halftone band around the edges
+  if(els.eOn.checked) drawEdgeHalftone(ctx,gray,w,h);
+
+  // 4. accent ticks on top
   if(els.tkOn.checked) drawTicks(ctx,w,h);
 }
 
@@ -288,6 +334,61 @@ function halftone(ctx,gray,w,h){
       if(dark<=0.01) continue;
       const r = (s/2)*Math.sqrt(dark)*1.25;
       ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// smooth value-noise: random lattice + smoothstep bilinear interpolation
+function buildNoise(seed,gw,gh){
+  const rng=mulberry32(seed); const g=new Float32Array(gw*gh);
+  for(let i=0;i<g.length;i++) g[i]=rng();
+  return {g,gw,gh};
+}
+function sampleNoise(n,fx,fy){
+  let x0=Math.floor(fx), y0=Math.floor(fy);
+  x0=(x0%n.gw+n.gw)%n.gw; y0=(y0%n.gh+n.gh)%n.gh;
+  const x1=(x0+1)%n.gw, y1=(y0+1)%n.gh;
+  let tx=fx-Math.floor(fx), ty=fy-Math.floor(fy);
+  tx=tx*tx*(3-2*tx); ty=ty*ty*(3-2*ty);          // smoothstep
+  const a=n.g[y0*n.gw+x0], b=n.g[y0*n.gw+x1], c=n.g[y1*n.gw+x0], d=n.g[y1*n.gw+x1];
+  const top=a+(b-a)*tx, bot=c+(d-c)*tx;
+  return top+(bot-top)*ty;
+}
+
+function drawEdgeHalftone(ctx,gray,w,h){
+  const s = +els.eDot.value;
+  const depth0 = (+els.eDepth.value/100) * Math.min(w,h);
+  const soft = +els.eSoft.value/100;
+  const irr = +els.eIrr.value/100;             // 0 = even frame, 1 = very organic
+  const useTone = els.eTone.checked;
+  ctx.fillStyle = els.eYellow.checked ? YELLOW : "#000";
+  if(depth0<=0) return;
+
+  // noise shapes how deep the band reaches; dots stay locked to the grid
+  const cell = Math.max(60, Math.min(w,h)/8);  // ~feature size of the ripple
+  const nDepth = buildNoise(edgeSeed, Math.ceil(w/cell)+2, Math.ceil(h/cell)+2);
+
+  for(let y=s/2; y<h; y+=s){
+    for(let x=s/2; x<w; x+=s){
+      const d = Math.min(x, y, w-x, h-y);       // distance to nearest edge
+      // local reach varies along the perimeter -> torn / sprayed band
+      const nd = sampleNoise(nDepth, x/cell, y/cell);          // 0..1
+      const localDepth = depth0 * (1 - irr + irr*2*nd);        // depth0*(1-irr) .. depth0*(1+irr)
+      if(localDepth<=0 || d>=localDepth) continue;
+      let f = 1 - d/localDepth;                 // 1 at edge -> 0 at reach
+      f = Math.pow(f, soft);
+
+      // optional: let the underlying image tone drive dot weight
+      let weight = f;
+      if(useTone){
+        const ix=Math.min(w-1,Math.max(0,Math.round(x)));
+        const iy=Math.min(h-1,Math.max(0,Math.round(y)));
+        const dark = 1 - gray[iy*w+ix]/255;     // 0 (bright) .. 1 (dark)
+        weight = f * (0.45 + 0.55*dark);        // edge falloff modulated by image
+      }
+      const r = (s/2) * Math.sqrt(Math.max(0,weight)) * 1.18;
+      if(r<0.4) continue;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();   // centre stays on grid
     }
   }
 }
