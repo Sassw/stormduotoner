@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STORM LAB duotoner</title>
+<style>
+  :root{
+    --yellow:#FFE000;
+    --bg:#0d0d0d;
+    --panel:#161616;
+    --line:#262626;
+    --text:#e8e8e8;
+    --muted:#8a8a8a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);
+    display:flex;min-height:100vh;
+  }
+  /* ---- control panel ---- */
+  .panel{
+    width:320px;flex:0 0 320px;background:var(--panel);
+    border-right:1px solid var(--line);padding:20px;overflow-y:auto;height:100vh;
+  }
+  .title{
+    font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 2px;
+  }
+  .title b{color:var(--yellow)}
+  .sub{font-size:12px;color:var(--muted);margin:0 0 20px}
+  .group{
+    border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;background:#121212;
+  }
+  .group h3{
+    margin:0 0 12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  label.row{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-size:13px}
+  label.row:last-child{margin-bottom:0}
+  .val{color:var(--yellow);font-variant-numeric:tabular-nums;font-weight:600}
+  .rowhead{display:flex;justify-content:space-between;align-items:center}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;
+    background:#333;outline:none;margin:0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--yellow);cursor:pointer;border:2px solid #000;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;background:var(--yellow);cursor:pointer;border:2px solid #000;
+  }
+  input[type=range]:disabled{opacity:.35;cursor:not-allowed}
+  /* toggle */
+  .toggle{position:relative;width:38px;height:20px;flex:0 0 38px}
+  .toggle input{opacity:0;width:0;height:0;position:absolute}
+  .track{position:absolute;inset:0;background:#333;border-radius:20px;transition:.15s;cursor:pointer}
+  .track:before{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s}
+  .toggle input:checked + .track{background:var(--yellow)}
+  .toggle input:checked + .track:before{transform:translateX(18px);background:#000}
+  button{
+    width:100%;padding:11px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+    background:var(--yellow);color:#000;transition:.12s;
+  }
+  button:hover{filter:brightness(1.08)}
+  button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  button.ghost:hover{border-color:var(--yellow);color:var(--yellow);filter:none}
+  button:disabled{opacity:.4;cursor:not-allowed;filter:none}
+  .btnrow{display:flex;gap:8px;margin-top:4px}
+  /* ---- stage ---- */
+  .stage{
+    flex:1;display:flex;align-items:center;justify-content:center;padding:32px;position:relative;
+    background:
+      linear-gradient(45deg,#151515 25%,transparent 25%,transparent 75%,#151515 75%),
+      linear-gradient(45deg,#151515 25%,#0d0d0d 25%,#0d0d0d 75%,#151515 75%);
+    background-size:24px 24px;background-position:0 0,12px 12px;
+    overflow:auto;
+  }
+  #preview{max-width:100%;max-height:calc(100vh - 64px);box-shadow:0 10px 40px rgba(0,0,0,.6);display:none}
+  .drop{
+    border:2px dashed #333;border-radius:14px;padding:60px 50px;text-align:center;color:var(--muted);
+    max-width:420px;transition:.15s;
+  }
+  .drop.over{border-color:var(--yellow);color:var(--yellow);background:rgba(255,224,0,.05)}
+  .drop b{color:var(--text);display:block;font-size:16px;margin-bottom:6px}
+  .drop.over b{color:var(--yellow)}
+  .hidden-input{display:none}
+</style>
+</head>
+<body>
+  <div class="panel">
+    <h1 class="title">STORM LAB <b>duotoner</b></h1>
+    <p class="sub">B&amp;W + contrast, multiplied with #FFE000.</p>
+
+    <div class="group">
+      <h3>Source</h3>
+      <button id="pickBtn">Choose image…</button>
+      <input type="file" id="file" accept="image/*" class="hidden-input">
+    </div>
+
+    <div class="group">
+      <h3>Tone</h3>
+      <label class="row">
+        <span class="rowhead"><span>Contrast</span><span class="val" id="contrastVal">42</span></span>
+        <input type="range" id="contrast" min="-100" max="100" value="42">
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Brightness</span><span class="val" id="brightVal">0</span></span>
+        <input type="range" id="brightness" min="-100" max="100" value="0">
+      </label>
+    </div>
+
+    <div class="group">
+      <h3>Halftone<label class="toggle"><input type="checkbox" id="htOn"><span class="track"></span></label></h3>
+      <label class="row">
+        <span class="rowhead"><span>Dot size</span><span class="val" id="dotVal">6</span></span>
+        <input type="range" id="dot" min="3" max="18" value="6" disabled>
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Angle</span><span class="val" id="angVal">45°</span></span>
+        <input type="range" id="angle" min="0" max="90" value="45" disabled>
+      </label>
+    </div>
+
+    <div class="group">
+      <h3>Accent ticks<label class="toggle"><input type="checkbox" id="tkOn"><span class="track"></span></label></h3>
+      <label class="row">
+        <span class="rowhead"><span>Count</span><span class="val" id="tkCountVal">40</span></span>
+        <input type="range" id="tkCount" min="0" max="200" value="40" disabled>
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Max length</span><span class="val" id="tkLenVal">28</span></span>
+        <input type="range" id="tkLen" min="6" max="80" value="28" disabled>
+      </label>
+      <label class="row">
+        <span class="rowhead"><span>Thickness</span><span class="val" id="tkThickVal">4</span></span>
+        <input type="range" id="tkThick" min="1" max="16" value="4" disabled>
+      </label>
+      <button class="ghost" id="shuffle" disabled>↻ Shuffle ticks</button>
+    </div>
+
+    <div class="btnrow">
+      <button id="download" disabled>Download PNG</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="drop" id="drop">
+      <b>Drop an image here</b>
+      or use “Choose image…”
+    </div>
+    <canvas id="preview"></canvas>
+  </div>
+
+<script>
+const YELLOW = "#FFE000";
+let img = null;
+let tickSeed = Math.floor(Math.random()*1e9);
+
+const $ = id => document.getElementById(id);
+const els = {
+  file:$("file"), pickBtn:$("pickBtn"), drop:$("drop"), stage:$("stage"),
+  preview:$("preview"), download:$("download"),
+  contrast:$("contrast"), brightness:$("brightness"),
+  htOn:$("htOn"), dot:$("dot"), angle:$("angle"),
+  tkOn:$("tkOn"), tkCount:$("tkCount"), tkLen:$("tkLen"), tkThick:$("tkThick"), shuffle:$("shuffle"),
+};
+const valEls = {
+  contrast:$("contrastVal"), brightness:$("brightVal"), dot:$("dotVal"), angle:$("angVal"),
+  tkCount:$("tkCountVal"), tkLen:$("tkLenVal"), tkThick:$("tkThickVal"),
+};
+
+// ---------- seeded RNG ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+// ---------- file handling ----------
+function loadFile(f){
+  if(!f || !f.type.startsWith("image/")) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const i = new Image();
+    i.onload = () => { img = i; els.preview.style.display="block"; els.drop.style.display="none"; els.download.disabled=false; render(); };
+    i.src = e.target.result;
+  };
+  r.readAsDataURL(f);
+}
+els.pickBtn.onclick = () => els.file.click();
+els.file.onchange = e => loadFile(e.target.files[0]);
+["dragenter","dragover"].forEach(ev=>els.stage.addEventListener(ev,e=>{e.preventDefault();els.drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>els.stage.addEventListener(ev,e=>{e.preventDefault();els.drop.classList.remove("over");}));
+els.stage.addEventListener("drop",e=>{ if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+// ---------- controls ----------
+function bind(el,key,suffix=""){
+  el.addEventListener("input",()=>{ if(valEls[key]) valEls[key].textContent = el.value + suffix; render(); });
+}
+bind(els.contrast,"contrast");
+bind(els.brightness,"brightness");
+bind(els.dot,"dot");
+bind(els.angle,"angle","°");
+bind(els.tkCount,"tkCount");
+bind(els.tkLen,"tkLen");
+bind(els.tkThick,"tkThick");
+
+els.htOn.addEventListener("change",()=>{
+  [els.dot,els.angle].forEach(e=>e.disabled=!els.htOn.checked); render();
+});
+els.tkOn.addEventListener("change",()=>{
+  [els.tkCount,els.tkLen,els.tkThick,els.shuffle].forEach(e=>e.disabled=!els.tkOn.checked); render();
+});
+els.shuffle.addEventListener("click",()=>{ tickSeed=Math.floor(Math.random()*1e9); render(); });
+els.download.addEventListener("click",()=>{
+  els.preview.toBlob(b=>{
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(b); a.download="yellow-duotone.png"; a.click();
+    URL.revokeObjectURL(a.href);
+  });
+});
+
+// ---------- render pipeline ----------
+const MAX = 2000;
+function render(){
+  if(!img) return;
+  let w = img.naturalWidth, h = img.naturalHeight;
+  const scale = Math.min(1, MAX/Math.max(w,h));
+  w = Math.round(w*scale); h = Math.round(h*scale);
+
+  const cv = els.preview; cv.width=w; cv.height=h;
+  const ctx = cv.getContext("2d");
+
+  // 1. draw + grayscale + contrast/brightness into an off buffer
+  const buf = document.createElement("canvas"); buf.width=w; buf.height=h;
+  const bctx = buf.getContext("2d");
+  bctx.drawImage(img,0,0,w,h);
+  const id = bctx.getImageData(0,0,w,h);
+  const px = id.data;
+
+  const C = +els.contrast.value;                 // -100..100
+  const factor = (259*(C*2.55+255))/(255*(259-C*2.55));
+  const bri = +els.brightness.value*2.55;         // -255..255
+  const gray = new Float32Array(w*h);
+
+  for(let i=0,p=0;i<px.length;i+=4,p++){
+    let g = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2];
+    g = factor*(g-128)+128 + bri;
+    g = g<0?0:g>255?255:g;
+    gray[p]=g;
+    px[i]=px[i+1]=px[i+2]=g;
+  }
+
+  if(els.htOn.checked){
+    halftone(ctx,gray,w,h);
+  } else {
+    bctx.putImageData(id,0,0);
+    ctx.drawImage(buf,0,0);
+  }
+
+  // 2. yellow multiply  -> whites become #FFE000, blacks stay black
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = YELLOW;
+  ctx.fillRect(0,0,w,h);
+  ctx.globalCompositeOperation = "source-over";
+
+  // 3. accent ticks on top
+  if(els.tkOn.checked) drawTicks(ctx,w,h);
+}
+
+function halftone(ctx,gray,w,h){
+  const s = +els.dot.value;
+  const ang = +els.angle.value * Math.PI/180;
+  const cos=Math.cos(ang), sin=Math.sin(ang);
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle="#000";
+  // diagonal extent so rotated grid covers the canvas
+  const diag = Math.ceil(Math.hypot(w,h));
+  const cx=w/2, cy=h/2;
+  for(let gy=-diag; gy<diag; gy+=s){
+    for(let gx=-diag; gx<diag; gx+=s){
+      // rotated grid point -> image coords
+      const x = cx + gx*cos - gy*sin;
+      const y = cy + gx*sin + gy*cos;
+      const ix=Math.round(x), iy=Math.round(y);
+      if(ix<0||iy<0||ix>=w||iy>=h) continue;
+      const dark = 1 - gray[iy*w+ix]/255;
+      if(dark<=0.01) continue;
+      const r = (s/2)*Math.sqrt(dark)*1.25;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+function drawTicks(ctx,w,h){
+  const rng = mulberry32(tickSeed);
+  const n = +els.tkCount.value;
+  const maxLen = +els.tkLen.value;
+  const thick = +els.tkThick.value;
+  ctx.fillStyle = YELLOW;
+  for(let i=0;i<n;i++){
+    const x = rng()*w, y = rng()*h;
+    const len = (0.35 + rng()*0.65)*maxLen;
+    const horiz = rng() < 0.5;
+    ctx.save();
+    ctx.translate(x,y);
+    if(rng()<0.15) ctx.rotate((rng()-0.5)*0.6); // a few skewed ones
+    if(horiz) ctx.fillRect(-len/2,-thick/2,len,thick);
+    else ctx.fillRect(-thick/2,-len/2,thick,len);
+    ctx.restore();
+  }
+}
+</script>
+</body>
+</html>
