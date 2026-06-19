@@ -156,6 +156,7 @@
 <script>
 const YELLOW = "#FFE000";
 let img = null;
+let srcName = "image";
 let tickSeed = Math.floor(Math.random()*1e9);
 
 const $ = id => document.getElementById(id);
@@ -177,6 +178,7 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 // ---------- file handling ----------
 function loadFile(f){
   if(!f || !f.type.startsWith("image/")) return;
+  srcName = f.name.replace(/\.[^.]+$/,"") || "image";
   const r = new FileReader();
   r.onload = e => {
     const i = new Image();
@@ -213,7 +215,7 @@ els.shuffle.addEventListener("click",()=>{ tickSeed=Math.floor(Math.random()*1e9
 els.download.addEventListener("click",()=>{
   els.preview.toBlob(b=>{
     const a=document.createElement("a");
-    a.href=URL.createObjectURL(b); a.download="yellow-duotone.png"; a.click();
+    a.href=URL.createObjectURL(b); a.download=srcName+" yellow duotone.png"; a.click();
     URL.revokeObjectURL(a.href);
   });
 });
